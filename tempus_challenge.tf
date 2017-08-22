@@ -1,4 +1,6 @@
-variable "instance_count" {}
+variable "instance_count" {
+  default = 1
+}
 
 provider "aws"{
   region = "us-east-2"
@@ -13,8 +15,8 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "public_subnet" {
-  vpc_id     = "${aws_vpc.main.id}"
-  cidr_block = "10.0.0.0/24"
+  vpc_id                  = "${aws_vpc.main.id}"
+  cidr_block              = "10.0.0.0/24"
   map_public_ip_on_launch = true
 
   tags {
@@ -40,8 +42,8 @@ resource "aws_internet_gateway" "gw" {
 }
 
 resource "aws_eip" "nat" {
-  vpc = true
-  depends_on = ["aws_internet_gateway.gw"]
+  vpc         = true
+  depends_on  = ["aws_internet_gateway.gw"]
 }
 
 resource "aws_nat_gateway" "ngw" {
@@ -68,8 +70,8 @@ resource "aws_route_table" "main_route_table" {
   vpc_id = "${aws_vpc.main.id}"
 
   route {
-    cidr_block = "0.0.0.0/0"
-    nat_gateway_id = "${aws_nat_gateway.ngw.id}"
+    cidr_block      = "0.0.0.0/0"
+    nat_gateway_id  = "${aws_nat_gateway.ngw.id}"
   }
 
   tags {
@@ -94,21 +96,45 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_route_table_association" "public_subnet_association" {
-    subnet_id = "${aws_subnet.public_subnet.id}"
-    route_table_id = "${aws_route_table.custom_route_table.id}"
+    subnet_id       = "${aws_subnet.public_subnet.id}"
+    route_table_id  = "${aws_route_table.custom_route_table.id}"
 }
 
 resource "aws_route_table_association" "private_subnet_association" {
-    subnet_id = "${aws_subnet.private_subnet.id}"
-    route_table_id = "${aws_route_table.main_route_table.id}"
+    subnet_id       = "${aws_subnet.private_subnet.id}"
+    route_table_id  = "${aws_route_table.main_route_table.id}"
+}
+
+resource "aws_security_group" "backend_servers" {
+  name        = "backend_servers"
+  description = "Security group for backend servers"
+  vpc_id      = "${aws_vpc.main.id}"
+  egress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress{
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags {
+    Name = "backend_servers"
+  }
 }
 
 
 resource "aws_instance" "web" {
-  count = "${var.instance_count}"
-  ami           = "${data.aws_ami.ubuntu.id}"
-  instance_type = "t2.micro"
-  subnet_id = "${aws_subnet.private_subnet.id}"
+  count                   = "${var.instance_count}"
+  ami                     = "${data.aws_ami.ubuntu.id}"
+  instance_type           = "t2.micro"
+  subnet_id               = "${aws_subnet.private_subnet.id}"
+  vpc_security_group_ids  = ["${aws_security_group.backend_servers.id}"]
   user_data = <<-EOF
               #!/bin/bash
               set -x
