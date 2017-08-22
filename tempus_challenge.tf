@@ -79,6 +79,7 @@ resource "aws_route_table" "main_route_table" {
   }
 }
 
+# This code block is from https://www.terraform.io/docs/providers/aws/r/instance.html
 data "aws_ami" "ubuntu" {
   most_recent = true
 
